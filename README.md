@@ -287,7 +287,6 @@ When contributing to this template:
 - **Template Issues**: [Bluelink GitHub Issues](https://github.com/newstack-cloud/bluelink/issues)
 - **AWS Provider Issues**: [Bluelink AWS Provider](https://github.com/newstack-cloud/bluelink-provider-aws/issues)
 - **Documentation**: [Bluelink Docs](https://bluelink.dev)
-- **AWS Documentation**: [AWS Docs](https://docs.aws.amazon.com/)
 
 ## License
 
