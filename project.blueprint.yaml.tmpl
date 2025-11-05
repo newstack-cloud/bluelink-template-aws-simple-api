@@ -1,0 +1,204 @@
+# Bluelink Blueprint - AWS Simple API Template
+# This template demonstrates an AWS-specific API using native AWS resources.
+# It uses API Gateway, Lambda, DynamoDB, and VPC with Bluelink's link system
+# for automatic IAM permissions and networking configuration.
+
+# Blueprint version - defines the blueprint specification format
+version: 2025-11-02
+
+# Variables - define configurable parameters that can be set at deployment time
+# These can be referenced throughout the blueprint using ${variables.variableName}
+variables:
+  appName:
+    type: string
+    description: The name of the application
+    default: {{.ProjectName}}
+  certificateId:
+    type: string
+    description: The certificate ID to be used for the API domain
+  environment:
+    type: string
+    description: The deployment environment
+  vpcCidrBlock:
+    type: string
+    description: CIDR block for the VPC
+    default: "10.0.0.0/16"
+  awsRegion:
+    type: string
+    description: AWS region for deployment
+    default: "us-east-1"
+
+# Resources - the core building blocks of your infrastructure
+resources:
+  # VPC Resource - defines a flexible VPC with standard preset
+  # Other resources can link to this VPC for automatic networking configuration
+  appVpc:
+    type: aws/flex/vpc
+    metadata:
+      displayName: {{.ProjectName}} VPC
+    linkSelector:
+      byLabel:
+        network: {{.NormalisedProjectName}}
+    spec:
+      name: {{.NormalisedProjectName}}-vpc
+      preset: standard
+      cidrBlock: "${variables.vpcCidrBlock}"
+      region: "${variables.awsRegion}"
+      tags:
+        Environment: "${variables.environment}"
+        Project: {{.ProjectName}}
+        ManagedBy: Bluelink
+
+  # API Gateway Resource - defines an HTTP API
+  # Links to Lambda functions via labels for automatic integration
+  api:
+    type: aws/apiGateway/api
+    metadata:
+      displayName: {{.ProjectName}} API
+      labels:
+        app: {{.NormalisedProjectName}}
+    linkSelector:
+      byLabel:
+        app: {{.NormalisedProjectName}}
+    spec:
+      name: {{.NormalisedProjectName}}-api
+      protocolType: HTTP
+      # CORS configuration for cross-origin requests
+      corsConfiguration:
+        allowCredentials: true
+        allowOrigins:
+          - "https://example.com"
+          - "https://another.example.com"
+        allowMethods:
+          - "GET"
+          - "POST"
+          - "PATCH"
+          - "DELETE"
+          - "OPTIONS"
+        allowHeaders:
+          - "Content-Type"
+          - "Authorization"
+          - "X-Requested-With"
+        exposeHeaders:
+          - "Content-Length"
+          - "X-Request-Id"
+        maxAge: 3600
+      # Custom domain configuration (optional)
+      # Uncomment and configure if you want to use a custom domain
+      # domainName:
+      #   domainName: "api.example.com"
+      #   certificateArn: "arn:aws:acm:${variables.awsRegion}:123456789012:certificate/${variables.certificateId}"
+      tags:
+        Environment: "${variables.environment}"
+        Project: {{.ProjectName}}
+
+  # Lambda Function Resource - handles the PATCH /resources/{resourceId} endpoint
+  # Connects to DynamoDB and VPC via linkSelector for automatic IAM and networking
+  updateResourceHandler:
+    type: aws/lambda/function
+    metadata:
+      displayName: {{.ProjectName}} Update Resource Handler
+      labels:
+        app: {{.NormalisedProjectName}}
+        network: {{.NormalisedProjectName}}
+      annotations:
+        # Annotations guide how links are established
+        aws.lambda.function.http: true
+        aws.lambda.function.http.method: "PATCH"
+        aws.lambda.function.http.path: "/resources/{resourceId}"
+    # LinkSelector establishes connections to matching resources:
+    # - Links to DynamoDB tables with matching labels (generates IAM policies)
+    # - Links to VPC with matching labels (configures networking)
+    # - API Gateway discovers this function via label matching
+    linkSelector:
+      byLabel:
+        app: {{.NormalisedProjectName}}
+    spec:
+      functionName: {{.NormalisedProjectName}}-update-resource
+      # Path to the deployment package (created by package-lambda.sh)
+      runtime: python3.13
+      handler: update_resource.handler
+      # Code location - local file or S3
+      code:
+        # Local ZIP file path (created by package-lambda.sh)
+        # In production, consider using S3: s3Bucket and s3Key
+        filename: dist/lambda-package.zip
+        # For S3-based deployment (alternative to filename):
+        # s3Bucket: my-deployment-bucket
+        # s3Key: lambda-packages/my-function.zip
+        # s3ObjectVersion: version-id  # Optional
+      # Memory allocation in MB
+      memorySize: 512
+      # Timeout in seconds
+      timeout: 30
+      # Environment variables - Bluelink automatically injects:
+      # - TABLE_NAME from the linked DynamoDB table
+      # - VPC configuration from the linked VPC
+      environment:
+        variables:
+          ENVIRONMENT: "${variables.environment}"
+          LOG_LEVEL: "INFO"
+      # Tracing configuration
+      tracingConfig:
+        mode: Active
+      tags:
+        Environment: "${variables.environment}"
+        Project: {{.ProjectName}}
+
+  # DynamoDB Table Resource - stores resource data
+  # Linked to Lambda via label matching (Lambda's linkSelector finds this via app label)
+  resourceStore:
+    type: aws/dynamodb/table
+    metadata:
+      displayName: {{.ProjectName}} Resource Store
+      labels:
+        app: {{.NormalisedProjectName}}
+    spec:
+      tableName: {{.NormalisedProjectName}}-resources
+      # Billing mode - use PAY_PER_REQUEST for variable workloads
+      billingMode: PAY_PER_REQUEST
+      # Partition key configuration
+      attributeDefinitions:
+        - attributeName: id
+          attributeType: S
+      keySchema:
+        - attributeName: id
+          keyType: HASH
+      # Enable point-in-time recovery for production
+      pointInTimeRecoverySpecification:
+        pointInTimeRecoveryEnabled: true
+      # Enable encryption at rest
+      sseSpecification:
+        sseEnabled: true
+        sseType: KMS
+        # Optional: Use customer-managed key for more control
+        # kmsMasterKeyId: arn:aws:kms:region:account-id:key/key-id
+      # Enable streams for change data capture (optional)
+      streamSpecification:
+        streamEnabled: true
+        streamViewType: NEW_AND_OLD_IMAGES
+      tags:
+        Environment: "${variables.environment}"
+        Project: {{.ProjectName}}
+
+  # JWT Authorizer for API Gateway (optional - configure based on your auth provider)
+  # jwtAuthorizer:
+  #   type: aws/apiGateway/authorizer
+  #   metadata:
+  #     displayName: {{.ProjectName}} JWT Authorizer
+  #     labels:
+  #       api: {{.NormalisedProjectName}}
+  #   linkSelector:
+  #     byLabel:
+  #       api: {{.NormalisedProjectName}}
+  #   spec:
+  #     name: jwt-authorizer
+  #     authorizerType: JWT
+  #     # Identity source - where to extract the JWT from requests
+  #     identitySources:
+  #       - "$request.header.Authorization"
+  #     # JWT configuration
+  #     jwtConfiguration:
+  #       audience:
+  #         - "https://identity.example.com/api/manage/v1/"
+  #       issuer: "https://identity.example.com/oauth2/v1/"

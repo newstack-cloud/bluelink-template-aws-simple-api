@@ -1,0 +1,373 @@
+# {{.ProjectName}}
+
+This project was bootstrapped with the [Bluelink CLI](https://bluelink.dev/docs/cli/getting-started) AWS Simple API template.
+
+## Overview
+
+This is an AWS-native API project using [Bluelink](https://bluelink.dev) with AWS-specific resources. The template demonstrates how to build a serverless API using API Gateway, Lambda, DynamoDB, and VPC with Bluelink's powerful link system for automatic IAM permissions and networking configuration.
+
+## Architecture
+
+This template deploys:
+
+- **AWS API Gateway**: HTTP API with CORS, throttling, and optional JWT authentication
+- **AWS Lambda**: Python 3.13 function for handling API requests
+- **Amazon DynamoDB**: NoSQL database for storing resource data
+- **AWS VPC**: Flexible VPC with standard preset for Lambda networking
+- **Automatic IAM**: Bluelink generates IAM policies based on resource links
+- **Automatic Networking**: VPC configuration applied automatically via links
+
+## Project Structure
+
+```
+├── README.md                          # This file
+├── bluelink.deploy.jsonc              # Deploy configuration (credentials, variables)
+├── project.blueprint.{{.BlueprintFormat}}             # Infrastructure blueprint
+├── requirements.txt                   # Python dependencies
+├── scripts/
+│   └── package-lambda.sh              # Lambda packaging script
+└── handlers/                          # Lambda handler code
+    └── resources/
+        ├── __init__.py
+        └── update_resource.py         # PATCH /resources/{resourceId} handler
+```
+
+## Files Explained
+
+### `project.blueprint.{{.BlueprintFormat}}`
+
+Your infrastructure blueprint defines all AWS resources in {{.BlueprintFormat}} format.
+
+**Key AWS Resources:**
+- `aws/flex/vpc`: Flexible VPC with automatic subnet and security group management
+- `aws/apiGateway/api`: HTTP API Gateway with CORS and throttling
+- `aws/lambda/function`: Python Lambda function with VPC and DynamoDB access
+- `aws/dynamodb/table`: DynamoDB table with encryption and point-in-time recovery
+
+**Bluelink Link System:**
+The template uses Bluelink's link system to automatically configure:
+- IAM permissions: Lambda → DynamoDB link generates policies for table access
+- Networking: Lambda → VPC link configures security groups and subnets
+- API integration: API Gateway discovers Lambda via label matching
+
+**Variables:**
+- `appName`: Application name (defaults to {{.ProjectName}})
+- `certificateId`: ACM certificate ID for custom domains
+- `environment`: Deployment environment (dev, staging, prod)
+- `vpcCidrBlock`: VPC CIDR block (default: 10.0.0.0/16)
+- `awsRegion`: AWS region for deployment (default: us-east-1)
+
+### `bluelink.deploy.jsonc`
+
+Deployment configuration manages how your blueprint gets deployed to AWS.
+
+**Configuration sections:**
+- **Providers**: AWS credentials (uses environment variables)
+- **Transformers**: AWS deployment target settings
+- **Context Variables**: General deployment values
+- **Blueprint Variables**: Override blueprint variable values
+- **Dependencies**: Plugin versions for AWS provider
+
+**Security Note**: This file uses environment variable substitution (`${VAR_NAME}`) for credentials. Keep sensitive values out of version control.
+
+### `handlers/` (Lambda Code)
+
+The `handlers/` directory contains Python Lambda code that demonstrates:
+
+- boto3 for DynamoDB access
+- Environment variable configuration (TABLE_NAME injected by Bluelink)
+- Proper error handling for missing resources
+- API Gateway compatible response format
+
+**Production Considerations:**
+- Add input validation with pydantic or marshmallow
+- Implement structured logging with aws-lambda-powertools
+- Add comprehensive error handling and retry logic
+- Set up monitoring and alerting
+
+### `scripts/package-lambda.sh`
+
+Shell script that packages your Lambda function for deployment:
+- Installs dependencies from requirements.txt
+- Copies handler code
+- Creates deployment-ready ZIP file at `dist/lambda-package.zip`
+
+## Getting Started
+
+### Prerequisites
+
+- [Bluelink CLI](https://bluelink.dev/docs/cli/getting-started) installed
+- AWS account with appropriate permissions
+- AWS CLI configured or environment variables set
+- Python 3.9+ installed locally (for packaging)
+
+### Setup
+
+1. **Set required environment variables:**
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="us-east-1"
+export ENVIRONMENT="dev"
+
+# Optional: for custom domain
+# export CERTIFICATE_ID="your-cert-id"
+```
+
+2. **Install Python dependencies (for local development):**
+
+```bash
+pip install -r requirements.txt
+```
+
+3. **Install Bluelink plugin dependencies:**
+
+```bash
+bluelink plugins install
+```
+
+4. **Validate your configuration:**
+
+```bash
+bluelink validate --check-blueprint-vars --check-plugin-config
+```
+
+## Packaging Lambda Function
+
+Before deploying, package your Lambda function:
+
+```bash
+./scripts/package-lambda.sh
+```
+
+This creates `dist/lambda-package.zip` with your handler code and dependencies.
+
+## Deployment
+
+### Deploy to a new instance
+
+1. **Package your Lambda function:**
+
+```bash
+./scripts/package-lambda.sh
+```
+
+2. **Stage your changes** (generate a change set):
+
+```bash
+bluelink stage --instance-name {{.NormalisedProjectName}}-dev --blueprint-file project.blueprint.{{.BlueprintFormat}}
+```
+
+This will output a change set ID showing what AWS infrastructure will be created.
+
+3. **Deploy the change set**:
+
+```bash
+bluelink deploy --change-set-id <change-set-id>
+```
+
+Or deploy immediately with instance name:
+
+```bash
+bluelink deploy --instance-name {{.NormalisedProjectName}}-dev --blueprint-file project.blueprint.{{.BlueprintFormat}}
+```
+
+### Update an existing instance
+
+1. **Package updated code:**
+
+```bash
+./scripts/package-lambda.sh
+```
+
+2. **Stage and deploy changes:**
+
+```bash
+bluelink stage --instance-name {{.NormalisedProjectName}}-dev --blueprint-file project.blueprint.{{.BlueprintFormat}}
+bluelink deploy --change-set-id <change-set-id>
+```
+
+### Destroy an instance
+
+```bash
+bluelink destroy --instance-name {{.NormalisedProjectName}}-dev
+```
+
+## Multi-Environment Deployments
+
+For different environments (dev, staging, prod), create environment-specific deploy configs:
+
+```
+├── bluelink.deploy.dev.jsonc
+├── bluelink.deploy.staging.jsonc
+└── bluelink.deploy.prod.jsonc
+```
+
+Each config can specify different:
+- AWS accounts/regions
+- VPC CIDR blocks
+- DynamoDB billing modes
+- Lambda memory/timeout settings
+
+Deploy to specific environments:
+
+```bash
+./scripts/package-lambda.sh
+
+bluelink deploy --instance-name {{.ProjectName}}-prod \
+  --deploy-config-file bluelink.deploy.prod.jsonc \
+  --blueprint-file project.blueprint.{{.BlueprintFormat}}
+```
+
+## Understanding Bluelink Links
+
+This template leverages Bluelink's link system for automatic configuration through **label-based selectors**:
+
+### How LinkSelector Works
+
+Resources connect to each other using `linkSelector` with label matching:
+
+```yaml
+# Lambda function declares what it wants to connect to
+updateResourceHandler:
+  metadata:
+    labels:
+      app: my-api
+      network: my-api
+  linkSelector:
+    byLabel:
+      app: my-api  # Finds all resources with app: my-api label
+
+# DynamoDB table with matching label - automatically linked
+resourceStore:
+  metadata:
+    labels:
+      app: my-api  # Matches! Lambda gets IAM permissions
+
+# VPC with matching label - automatically linked
+appVpc:
+  linkSelector:
+    byLabel:
+      network: my-api  # Matches Lambda's network label
+```
+
+### What Happens Automatically
+
+**IAM Permissions (Lambda ↔ DynamoDB)**
+- Lambda's linkSelector finds DynamoDB table with matching `app` label
+- Bluelink generates IAM policies for GetItem, PutItem, UpdateItem, DeleteItem
+- Lambda gets access to DynamoDB Streams if enabled
+- TABLE_NAME environment variable injected into Lambda
+
+**VPC Networking (Lambda ↔ VPC)**
+- VPC's linkSelector finds Lambda with matching `network` label
+- Lambda placed in private subnets automatically
+- Security groups configured for outbound access
+- NAT gateway routes set up if needed
+
+**API Integration (API Gateway → Lambda)**
+- API Gateway's linkSelector finds Lambda with matching `app` label
+- Annotations on Lambda specify HTTP method and path
+- API Gateway integration created automatically
+- Lambda invoke permissions configured
+
+## Customization
+
+### Add More Endpoints
+
+1. Create new handler in `handlers/`:
+```python
+# handlers/resources/create_resource.py
+def handler(event, context):
+    # Implementation
+```
+
+2. Add Lambda resource in blueprint:
+```yaml
+createResourceHandler:
+  type: aws/lambda/function
+  metadata:
+    labels:
+      app: {{.NormalisedProjectName}}
+      network: {{.NormalisedProjectName}}
+    annotations:
+      aws.lambda.function.http: true
+      aws.lambda.function.http.method: "POST"
+      aws.lambda.function.http.path: "/resources"
+  linkSelector:
+    byLabel:
+      app: {{.NormalisedProjectName}}
+  spec:
+    runtime: python3.13
+    handler: create_resource.handler
+    # ... other config
+```
+
+3. Repackage and deploy:
+```bash
+./scripts/package-lambda.sh
+bluelink deploy --instance-name {{.NormalisedProjectName}}-dev
+```
+
+### Configure JWT Authentication
+
+Uncomment the JWT authorizer section in your blueprint and configure:
+```yaml
+jwtAuthorizer:
+  type: aws/apiGateway/authorizer
+  spec:
+    issuer: "https://your-identity-provider.com/"
+    audience:
+      - "https://your-api.com/api"
+```
+
+### Use Custom Domain
+
+1. Create ACM certificate in AWS Console
+2. Set certificate ID environment variable
+3. Uncomment domain configuration in blueprint
+4. Deploy changes
+
+## Common Commands
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/package-lambda.sh` | Package Lambda function |
+| `bluelink validate` | Check blueprint and config for errors |
+| `bluelink stage` | Preview infrastructure changes |
+| `bluelink deploy` | Apply changes to AWS infrastructure |
+| `bluelink destroy` | Remove deployed infrastructure |
+| `bluelink plugins list` | Show installed plugins |
+
+## Monitoring and Debugging
+
+### CloudWatch Logs
+Lambda logs are automatically sent to CloudWatch Logs:
+```bash
+aws logs tail /aws/lambda/{{.NormalisedProjectName}}-update-resource --follow
+```
+
+### X-Ray Tracing
+X-Ray tracing is enabled by default. View traces in AWS X-Ray console.
+
+### Testing Locally
+Use AWS SAM or LocalStack for local testing:
+```bash
+# Install AWS SAM CLI
+sam local invoke updateResourceHandler -e test-event.json
+```
+
+## Learn More
+
+- [Bluelink Documentation](https://bluelink.dev)
+- [Bluelink AWS Provider](https://github.com/newstack-cloud/bluelink-provider-aws)
+- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
+- [API Gateway Documentation](https://docs.aws.amazon.com/apigateway/)
+- [DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
+
+## Support
+
+For issues or questions:
+- [Bluelink GitHub Issues](https://github.com/newstack-cloud/bluelink/issues)
+- [AWS Provider Issues](https://github.com/newstack-cloud/bluelink-provider-aws/issues)

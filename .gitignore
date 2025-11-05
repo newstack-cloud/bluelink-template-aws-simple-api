@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.mypy_cache/
+
+# Lambda packaging artifacts
+dist/
+*.zip
+package/
+lambda-package/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bluelink
+.bluelink/
+
+# Environment variables
+.env
+.env.local
+
+# Deployment configs with credentials (keep templates)
+bluelink.deploy.local.jsonc
+bluelink.deploy.*.local.jsonc

@@ -1,0 +1,64 @@
+{
+  // Bluelink Deployment Configuration
+  // This file configures how your blueprint gets deployed to AWS.
+  // Use environment variable substitution (${VAR_NAME}) to keep credentials secure.
+
+  // AWS Provider Configuration
+  // Credentials are loaded from environment variables for security
+  "providers": {
+    "aws": {
+      // AWS credentials - set these as environment variables before deploying
+      "accessKeyId": "${AWS_ACCESS_KEY_ID}",
+      "secretAccessKey": "${AWS_SECRET_ACCESS_KEY}",
+
+      // Optional: Specify AWS region (overrides blueprint variable)
+      // "region": "${AWS_REGION}",
+
+      // Optional: Use AWS profile instead of access keys
+      // "profile": "${AWS_PROFILE}",
+
+      // Optional: Assume an IAM role for deployment
+      // "roleArn": "arn:aws:iam::123456789012:role/BluelinkDeploymentRole",
+
+      // Optional: Session token for temporary credentials
+      // "sessionToken": "${AWS_SESSION_TOKEN}"
+    }
+  },
+
+  // No transformer needed - using concrete AWS resources directly
+
+  // Context Variables
+  // Global configuration values available throughout deployment
+  "contextVariables": {
+    // Add any deployment-wide configuration here
+    // "deploymentTimestamp": "${DEPLOYMENT_TIMESTAMP}",
+    // "deployedBy": "${USER}"
+  },
+
+  // Blueprint Variables
+  // Override blueprint variable values for this deployment
+  "blueprintVariables": {
+    // Application name from template
+    "appName": "{{.ProjectName}}",
+
+    // AWS Certificate Manager certificate ID (for custom domains)
+    // Set this environment variable if using custom domains
+    "certificateId": "${CERTIFICATE_ID}",
+
+    // Deployment environment (dev, staging, prod)
+    "environment": "${ENVIRONMENT}",
+
+    // VPC CIDR block (optional override)
+    // "vpcCidrBlock": "${VPC_CIDR_BLOCK}",
+
+    // AWS region (optional override)
+    // "awsRegion": "${AWS_REGION}"
+  },
+
+  // Plugin Dependencies
+  // Specify versions of Bluelink plugins to use
+  "dependencies": {
+    // AWS provider plugin - handles aws/* resource types
+    "newstack-cloud/aws": "~0.1.0"
+  }
+}

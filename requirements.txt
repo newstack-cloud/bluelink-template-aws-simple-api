@@ -1,0 +1,31 @@
+# Python dependencies for AWS Lambda handler functions
+# This is a minimal example - add your actual dependencies here
+
+# AWS SDK for Python - required for DynamoDB, S3, and other AWS services
+boto3>=1.35.0
+
+# Additional dependencies you may want to add for production:
+
+# Request validation and data modeling
+# pydantic>=2.0.0
+# marshmallow>=3.20.0
+
+# AWS Lambda Powertools - for structured logging, tracing, and metrics
+# aws-lambda-powertools>=2.30.0
+
+# Testing frameworks (for local development only - not needed in Lambda package)
+# pytest>=7.4.0
+# moto>=4.2.0  # Mock AWS services for testing
+
+# HTTP client for external API calls
+# httpx>=0.25.0
+# requests>=2.31.0
+
+# Date/time handling improvements
+# python-dateutil>=2.8.2
+
+# JSON Web Token handling (if implementing JWT validation in Lambda)
+# PyJWT>=2.8.0
+
+# Environment variable management
+# python-dotenv>=1.0.0
